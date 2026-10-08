@@ -1,0 +1,35 @@
+{
+    "name": "Mayor Ride Co.",
+    "short_name": "Mayor Ride Co.",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#102020",
+    "theme_color": "#162a2a",
+    "description": "Ghana's trusted source for premium motorcycle gear and backpacks.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

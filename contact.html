@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Us | Mayor Ride Co.</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .contact-container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 0 20px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+        input, textarea {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <!-- Brand logo stays beside the company name in the site navigation. -->
+        <div class="logo"><a href="index.html"><img src="images/logo.svg" alt="Mayor Ride Co. logo"><span>Mayor Ride Co.</span></a></div>
+        <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="shop.html">Shop</a></li>
+            <li><a href="about.html">About</a></li>
+            <li><a href="contact.html">Contact</a></li>
+            <li><a href="admin.html" data-admin-link>Admin</a></li>
+        </ul>
+
+        <div class="nav-actions">
+            <div class="account-section">
+                <div class="auth-buttons">
+                    <button class="nav-btn outline" type="button" data-auth="login">Login</button>
+                    <button class="nav-btn primary" type="button" data-auth="signup">Sign Up</button>
+                </div>
+                <div data-user-status class="user-status"></div>
+            </div>
+            <div class="search-section">
+                <form id="site-search-form" class="search-wrap">
+                    <input id="site-search" type="search" placeholder="Search products" aria-label="Search products">
+                    <button type="submit" class="search-btn">Search</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="contact-container">
+        <h2>Contact Us</h2>
+        <p>Have questions? Reach out to us using the form below.</p>
+        <br>
+        <form>
+            <input type="text" placeholder="Your Name" required>
+            <input type="email" placeholder="Your Email" required>
+            <textarea rows="5" placeholder="Your Message" required></textarea>
+            <button type="submit">Send Message</button>
+        </form>
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>Mayor Ride Co.</h3>
+                <p>Ghana's trusted source for premium motorcycle gear and backpacks.</p>
+            </div>
+            <div class="footer-section">
+                <h3>Quick Links</h3>
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="shop.html">Shop</a></li>
+                    <li><a href="about.html">About Us</a></li>
+                    <li><a href="contact.html">Contact</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3>Visit Us</h3>
+                <p>Kasoa, Ghana</p>
+                <p>Email: info@mayorrideco.com</p>
+                <p>Phone: +233 5914 67132</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <span>&copy; 2024 Mayor Ride Co. All rights reserved.</span>
+            <span class="footer-credit">Created by Desmond K. Appiah</span>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="database.js"></script>
+    <script src="auth.js"></script>
+    <script src="shop.js"></script>
+    <script src="https://js.paystack.co/v2/inline.js"></script>
+    <script src="paystack-config.js"></script>
+    <script src="cart.js"></script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Us | Mayor Ride Co.</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <nav>
+        <!-- Brand logo stays beside the company name in the site navigation. -->
+        <div class="logo"><a href="index.html"><img src="images/logo.svg" alt="Mayor Ride Co. logo"><span>Mayor Ride Co.</span></a></div>
+        <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="shop.html">Shop</a></li>
+            <li><a href="about.html">About</a></li>
+            <li><a href="contact.html">Contact</a></li>
+            <li><a href="admin.html" data-admin-link>Admin</a></li>
+        </ul>
+
+        <div class="nav-actions">
+            <div class="account-section">
+                <div class="auth-buttons">
+                    <button class="nav-btn outline" type="button" data-auth="login">Login</button>
+                    <button class="nav-btn primary" type="button" data-auth="signup">Sign Up</button>
+                </div>
+                <div data-user-status class="user-status"></div>
+            </div>
+            <div class="search-section">
+                <form id="site-search-form" class="search-wrap">
+                    <input id="site-search" type="search" placeholder="Search products" aria-label="Search products">
+                    <button type="submit" class="search-btn">Search</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <main class="about-container">
+        <section class="about-intro">
+            <p class="eyebrow">OUR STORY</p>
+            <h1>Built for riders who take every road personally.</h1>
+            <p class="about-lead">Mayor Ride Co. is Ghana's destination for dependable motorcycle gear that brings protection, comfort, and character to every ride.</p>
+        </section>
+
+        <section class="about-grid" aria-label="About Mayor Ride Co.">
+            <article class="about-card about-card-featured">
+                <span class="about-card-number">01</span>
+                <h2>Quality you can trust</h2>
+                <p>We carefully select helmets, clothing, boots, and backpacks that meet the demands of real riders. Every item earns its place through fit, durability, and everyday usefulness.</p>
+            </article>
+            <article class="about-card">
+                <span class="about-card-number">02</span>
+                <h2>Made for the community</h2>
+                <p>From first-time riders to seasoned road veterans, we make it easier to find gear that feels right and performs when it matters.</p>
+            </article>
+            <article class="about-card">
+                <span class="about-card-number">03</span>
+                <h2>Ready for the next ride</h2>
+                <p>Based in Accra, we pair a focused collection with responsive service and same-day delivery across the city.</p>
+            </article>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>Mayor Ride Co.</h3>
+                <p>Ghana's trusted source for premium motorcycle gear and backpacks.</p>
+            </div>
+            <div class="footer-section">
+                <h3>Quick Links</h3>
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="shop.html">Shop</a></li>
+                    <li><a href="about.html">About Us</a></li>
+                    <li><a href="contact.html">Contact</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3>Visit Us</h3>
+                <p>Kasoa, Ghana</p>
+                <p>Email: info@mayorrideco.com</p>
+                <p>Phone: +233 5914 67132</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <span>&copy; 2024 Mayor Ride Co. All rights reserved.</span>
+            <span class="footer-credit">Created by Desmond K. Appiah</span>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="database.js"></script>
+    <script src="auth.js"></script>
+    <script src="shop.js"></script>
+    <script src="https://js.paystack.co/v2/inline.js"></script>
+    <script src="paystack-config.js"></script>
+    <script src="cart.js"></script>
+</body>
+</html>
