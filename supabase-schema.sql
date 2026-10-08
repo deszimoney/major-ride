@@ -95,6 +95,17 @@ create trigger on_auth_user_created_profile
   after insert on auth.users
   for each row execute function public.create_user_profile();
 
+-- Backfill accounts created before the profile trigger was installed.
+insert into public.users (id, name, email, provider)
+select
+  id::text,
+  coalesce(nullif(raw_user_meta_data ->> 'name', ''), split_part(email, '@', 1)),
+  email,
+  coalesce(raw_app_meta_data ->> 'provider', 'email')
+from auth.users
+where email is not null
+on conflict (id) do nothing;
+
 -- Remove all earlier policies, including the permissive public write policies.
 do $$
 declare

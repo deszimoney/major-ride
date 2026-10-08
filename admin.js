@@ -290,7 +290,9 @@
     adminContent.innerHTML = isConfigured ? `
       <div class="admin-lock">
         <h2>Admin access required</h2>
-        <p>Sign in with an administrator account configured in Supabase.</p>
+        <p>Sign in with the account you want to use for store administration, then make sure that account has the <code>admin</code> role in Supabase.</p>
+        <p>If this account already existed before the profile trigger was installed, apply the updated <code>supabase-schema.sql</code> to backfill its profile. Then promote its Auth user ID using the secure instructions below.</p>
+        <a href="SECURITY.md" class="btn">Open administrator setup instructions</a>
         <a href="index.html" class="btn">Back to Home</a>
       </div>
     ` : `

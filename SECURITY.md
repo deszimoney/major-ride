@@ -4,16 +4,34 @@ The storefront is browser code, so browser-side checks are for user experience o
 
 ## Required Supabase setup
 
-1. Back up the existing database, then run `supabase-schema.sql` in the Supabase SQL editor. This removes the old plaintext `users.password` column, removes permissive policies, and does not seed an administrator account.
-2. Create an account through the storefront. In the Supabase SQL editor, promote only the intended account by its Auth user ID:
+1. Back up the existing database, then run `supabase-schema.sql` in the Supabase SQL editor. This removes the old plaintext `users.password` column, removes permissive policies, and backfills profiles for Auth accounts that existed before the profile trigger was installed. It does not seed an administrator account.
+2. Create an account through the storefront, or use the Auth user you already created. In the Supabase SQL editor, promote only that account by its Auth user ID. Replace the UUID below with the user's ID from **Authentication → Users**:
 
    ```sql
-   update public.users
-   set role = 'admin'
-   where id = '<the intended Supabase Auth user UUID>';
+   do $$
+   declare
+     target_user_id uuid := '<the intended Supabase Auth user UUID>';
+   begin
+     insert into public.users (id, name, email, provider, role)
+     select
+       id::text,
+       coalesce(nullif(raw_user_meta_data ->> 'name', ''), split_part(email, '@', 1)),
+       email,
+       coalesce(raw_app_meta_data ->> 'provider', 'email'),
+       'admin'
+     from auth.users
+     where id = target_user_id
+       and email is not null
+     on conflict (id) do update set role = 'admin';
+
+     if not found then
+       raise exception 'No Auth user with that UUID and an email address was found.';
+     end if;
+   end
+   $$;
    ```
 
-   Never grant admin by email in browser code or accept a role from user metadata.
+   This also creates a missing profile for an existing Auth user. Check that exactly the intended account can access the admin page after refreshing it. Never grant admin from browser code, by email alone, or from user metadata.
 3. Deploy `supabase/functions/verify-paystack-order/index.ts` as the `verify-paystack-order` Edge Function.
 4. Set the Edge Function secrets in Supabase (never in this repository or frontend):
 
