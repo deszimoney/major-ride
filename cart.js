@@ -7,8 +7,23 @@
   function readCart() {
     try {
       const saved = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
-      return Array.isArray(saved) ? saved : [];
+      if (!Array.isArray(saved)) return [];
+      return saved.flatMap((item) => {
+        if (!item || typeof item.id !== 'string' || !Number.isInteger(item.quantity)) return [];
+        if (item.quantity < 1 || item.quantity > 99) return [];
+        const product = window.MRCo?.getProducts().find((entry) => entry.id === item.id);
+        return product && Number.isFinite(Number(product.price)) && Number(product.price) > 0
+          ? [{
+            id: product.id,
+            name: product.name,
+            price: Number(product.price),
+            image: product.image,
+            quantity: item.quantity
+          }]
+          : [];
+      });
     } catch (error) {
+      console.error('Discarded an invalid saved cart.', error);
       return [];
     }
   }
@@ -47,18 +62,20 @@
   function getUserOrders() {
     const user = getCurrentUser();
     if (!user) return [];
-    return window.MRCo.getOrders().filter((order) => order.userId === user.id);
+    return window.MRCo.getOrders().filter((order) =>
+      order.userId === user.id &&
+      order.paymentStatus === 'completed' &&
+      order.paymentReference &&
+      order.paymentVerifiedAt
+    );
   }
 
   function formatMoney(value) {
-    return `GHS ${Number(value).toFixed(2)}`;
+    const amount = Number(value);
+    return `GHS ${(Number.isFinite(amount) ? amount : 0).toFixed(2)}`;
   }
 
-  function escapeHtml(value) {
-    return String(value).replace(/[&<>'"]/g, (character) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-    }[character]));
-  }
+  const escapeHtml = (value) => window.MRCo.escapeHtml(value);
 
   function isLoggedIn() {
     return Boolean(window.MRCo?.getCurrentUser());
@@ -86,7 +103,7 @@
             <label><input type="radio" name="deliveryMethod" value="pickup"> Pickup <span>+GHS 15.00</span></label>
           </fieldset>
           <label class="cart-location-field" for="deliveryLocation">Delivery location <span>(required for delivery)</span></label>
-          <input id="deliveryLocation" class="cart-location-input" type="text" placeholder="Town, area, and delivery address">
+          <input id="deliveryLocation" class="cart-location-input" type="text" maxlength="300" placeholder="Town, area, and delivery address">
           <div class="cart-line"><span>Service cost</span><strong id="cartServiceFee">GHS 40.00</strong></div>
           <div class="cart-line cart-grand-total"><span>Grand total</span><strong id="cartGrandTotal">GHS 0.00</strong></div>
           <p class="payment-methods">Pay securely with card, bank transfer, or mobile money.</p>
@@ -108,7 +125,7 @@
     items.innerHTML = cart.length
       ? cart.map((item) => `
         <article class="cart-item">
-          <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}">
+          <img src="${escapeHtml(window.MRCo.sanitizeImageUrl(item.image))}" alt="${escapeHtml(item.name)}">
           <div class="cart-item-info"><h3>${escapeHtml(item.name)}</h3><p>${formatMoney(item.price)}</p>
             <div class="quantity-controls"><button type="button" data-cart-decrease="${escapeHtml(item.id)}">-</button><span>${item.quantity}</span><button type="button" data-cart-increase="${escapeHtml(item.id)}">+</button><button class="cart-remove" type="button" data-cart-remove="${escapeHtml(item.id)}">Remove</button></div>
           </div>
@@ -170,45 +187,69 @@
     drawer.setAttribute('aria-hidden', 'true');
   }
 
-  function saveCompletedOrder(reference) {
-    const cart = readCart();
+  async function saveCompletedOrder(reference, items, method, location) {
     const user = getCurrentUser();
-    if (!cart.length || !user) return;
-
-    const method = document.querySelector('input[name="deliveryMethod"]:checked')?.value || 'delivery';
-    const location = document.getElementById('deliveryLocation')?.value.trim() || '';
-    if (method === 'delivery' && !location) {
-      window.alert('Enter your delivery location before continuing.');
+    if (!items.length || !user || typeof reference !== 'string' || !reference) {
+      window.alert('We could not confirm this payment. Keep your payment reference and contact support.');
       return;
     }
-    const serviceFee = method === 'pickup' ? PICKUP_FEE : DELIVERY_FEE;
-    const order = {
-      id: 'order-' + Date.now(),
-      userId: user.id,
-      userName: user.name,
-      userEmail: user.email,
-      items: cart,
-      subtotal: getSubtotal(cart),
-      serviceFee,
-      total: getSubtotal(cart) + serviceFee,
-      deliveryMethod: method,
-      deliveryLocation: location,
-      paymentStatus: 'completed',
-      paymentProvider: 'paystack',
-      paymentReference: reference,
-      paidAt: new Date().toISOString(),
-      deliveryConfirmed: false
-    };
 
-    const orders = window.MRCo.getOrders();
-    orders.unshift(order);
-    window.MRCo.saveOrders(orders);
-    saveCart([]);
-    renderCart();
-    window.alert('Payment completed. Your order has been placed.');
+    const supabase = window.MRCo.getSupabaseClient();
+    if (!supabase) {
+      window.alert('Payment was received, but secure order verification is unavailable. Keep your payment reference and contact support.');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-paystack-order', {
+        body: {
+          reference,
+          items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
+          deliveryMethod: method,
+          deliveryLocation: location
+        }
+      });
+      if (error || !data?.order) {
+        console.error('Server-side payment verification failed.', error || data);
+        window.alert('Payment may have been received, but the order is not verified yet. Keep your payment reference and contact support.');
+        return;
+      }
+
+      const row = data.order;
+      window.MRCo.cacheVerifiedOrder({
+        id: row.id,
+        userId: row.user_id,
+        userName: row.user_name,
+        userEmail: row.user_email,
+        items: row.items,
+        subtotal: row.subtotal,
+        serviceFee: row.service_fee,
+        total: row.total,
+        paymentStatus: row.payment_status,
+        paymentProvider: row.payment_provider,
+        paymentReference: row.payment_reference,
+        paymentVerifiedAt: row.payment_verified_at,
+        paidAt: row.paid_at,
+        deliveryMethod: row.delivery_method,
+        deliveryLocation: row.delivery_location,
+        deliveryConfirmed: row.delivery_confirmed,
+        deliveredAt: row.delivered_at
+      });
+      const currentCart = readCart();
+      const checkoutCartUnchanged = currentCart.length === items.length &&
+        currentCart.every((item, index) =>
+          item.id === items[index].id && item.quantity === items[index].quantity
+        );
+      if (checkoutCartUnchanged) saveCart([]);
+      renderCart();
+      window.alert('Payment verified. Your order has been placed.');
+    } catch (error) {
+      console.error('Unable to verify and save the paid order.', error);
+      window.alert('Payment may have been received, but the order is not verified yet. Keep your payment reference and contact support.');
+    }
   }
 
-  function startPaystackCheckout() {
+  async function startPaystackCheckout() {
     const cart = readCart();
     const user = getCurrentUser();
     const publicKey = window.MRCO_PAYSTACK_PUBLIC_KEY;
@@ -226,35 +267,58 @@
 
     const method = document.querySelector('input[name="deliveryMethod"]:checked')?.value || 'delivery';
     const location = document.getElementById('deliveryLocation')?.value.trim() || '';
-    if (method === 'delivery' && !location) {
+    if (!['delivery', 'pickup'].includes(method)) {
+      window.alert('Choose a valid collection method.');
+      return;
+    }
+    if (method === 'delivery' && (location.length < 4 || location.length > 300)) {
       window.alert('Enter your delivery location before continuing.');
       return;
     }
     const serviceFee = method === 'pickup' ? PICKUP_FEE : DELIVERY_FEE;
     const total = getSubtotal(cart) + serviceFee;
     const checkoutButton = document.querySelector('.cart-checkout');
+    const supabase = window.MRCo.getSupabaseClient();
+    if (!supabase) {
+      window.alert('Secure payment verification is not configured yet. Please try again later.');
+      return;
+    }
     if (checkoutButton) checkoutButton.disabled = true;
 
-    const popup = new window.PaystackPop();
-    popup.newTransaction({
-      key: publicKey,
-      email: user.email,
-      amount: Math.round(total * 100),
-      currency: 'GHS',
-      channels: ['card', 'bank', 'mobile_money'],
-      metadata: {
-        custom_fields: [
-          { display_name: 'Customer name', variable_name: 'customer_name', value: user.name },
-          { display_name: 'Collection method', variable_name: 'collection_method', value: method },
-          { display_name: 'Delivery location', variable_name: 'delivery_location', value: location || 'Pickup' }
-        ]
-      },
-      onSuccess: (transaction) => saveCompletedOrder(transaction.reference),
-      onCancel: () => window.alert('Payment was cancelled. Your cart is still available.'),
-      onError: () => window.alert('Payment could not be started. Please try again.')
-    });
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-paystack-order', {
+        body: { action: 'healthcheck' }
+      });
+      if (error || data?.ready !== true) {
+        console.error('Secure payment verification is unavailable.', error || data);
+        window.alert('Secure payment verification is unavailable. No payment was started.');
+        return;
+      }
 
-    if (checkoutButton) checkoutButton.disabled = false;
+      const popup = new window.PaystackPop();
+      popup.newTransaction({
+        key: publicKey,
+        email: user.email,
+        amount: Math.round(total * 100),
+        currency: 'GHS',
+        channels: ['card', 'bank', 'mobile_money'],
+        metadata: {
+          custom_fields: [
+            { display_name: 'Customer name', variable_name: 'customer_name', value: user.name },
+            { display_name: 'Collection method', variable_name: 'collection_method', value: method },
+            { display_name: 'Delivery location', variable_name: 'delivery_location', value: location || 'Pickup' }
+          ]
+        },
+        onSuccess: (transaction) => saveCompletedOrder(transaction?.reference, cart, method, location),
+        onCancel: () => window.alert('Payment was cancelled. Your cart is still available.'),
+        onError: () => window.alert('Payment could not be started. Please try again.')
+      });
+    } catch (error) {
+      console.error('Unable to open Paystack checkout.', error);
+      window.alert('Payment could not be started. Please try again.');
+    } finally {
+      if (checkoutButton) checkoutButton.disabled = false;
+    }
   }
 
   function refreshCartButton() {
@@ -269,7 +333,14 @@
     button.className = 'nav-btn cart-trigger';
     button.type = 'button';
     button.setAttribute('data-cart-trigger', 'true');
-    button.innerHTML = '<i class="fas fa-shopping-bag" aria-hidden="true"></i> Cart <span data-cart-count hidden>0</span>';
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-shopping-bag';
+    icon.setAttribute('aria-hidden', 'true');
+    button.append(icon, document.createTextNode(' Cart '));
+    const count = document.createElement('span');
+    count.dataset.cartCount = '';
+    count.hidden = true;
+    button.append(count);
     account.appendChild(button);
     renderCart();
   }
@@ -287,7 +358,7 @@
     const itemId = increase?.dataset.cartIncrease || decrease?.dataset.cartDecrease || remove?.dataset.cartRemove;
     if (itemId) {
       const item = cart.find((entry) => entry.id === itemId);
-      if (increase && item) item.quantity += 1;
+      if (increase && item && item.quantity < 99) item.quantity += 1;
       if (decrease && item) item.quantity -= 1;
       if (remove || item?.quantity <= 0) saveCart(cart.filter((entry) => entry.id !== itemId));
       else saveCart(cart);

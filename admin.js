@@ -1,16 +1,20 @@
 (function () {
-  const { ensureDatabase, getProducts, saveProducts, getCurrentUser, getOrders, saveOrders } = window.MRCo;
+  const {
+    ensureDatabase,
+    getProducts,
+    saveProducts,
+    deleteProduct,
+    getOrders,
+    updateOrderDeliveryStatus,
+    escapeHtml,
+    sanitizeImageUrl
+  } = window.MRCo;
   const CART_ACTIVITY_KEY = 'mrco_cart_activity';
   const CART_ACTIVITY_SEEN_KEY = 'mrco_cart_activity_seen';
 
   function formatMoney(value) {
-    return `GHS ${Number(value).toFixed(2)}`;
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>'"]/g, (character) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-    }[character]));
+    const amount = Number(value);
+    return `GHS ${(Number.isFinite(amount) ? amount : 0).toFixed(2)}`;
   }
 
   function renderProductList() {
@@ -25,7 +29,7 @@
 
     list.innerHTML = products.map((product) => `
       <article class="admin-product-item">
-        <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}">
+        <img src="${escapeHtml(sanitizeImageUrl(product.image))}" alt="${escapeHtml(product.name)}">
         <div>
           <h3>${escapeHtml(product.name)}</h3>
           <p>${escapeHtml(product.category)}</p>
@@ -72,16 +76,22 @@
     const product = products.find((entry) => entry.id === productId);
     if (!product || !window.confirm(`Remove ${product.name} from the shop?`)) return;
 
-    saveProducts(products.filter((entry) => entry.id !== productId));
-    renderProductList();
-    if (document.getElementById('product-form')?.dataset.editId === productId) setFormMode();
+    deleteProduct(productId).then(() => {
+      renderProductList();
+      if (document.getElementById('product-form')?.dataset.editId === productId) setFormMode();
+    }).catch((error) => {
+      console.error('Unable to remove product.', error);
+      window.alert('The product could not be removed. Confirm you are signed in as an administrator.');
+    });
   }
 
   function renderOrderList() {
     const list = document.getElementById('admin-order-list');
     if (!list) return;
 
-    const orders = getOrders();
+    const orders = getOrders().filter((order) =>
+      order.paymentStatus === 'completed' && order.paymentReference && order.paymentVerifiedAt
+    );
     if (!orders.length) {
       list.innerHTML = '<p class="empty-state">No completed payments yet.</p>';
       return;
@@ -91,16 +101,16 @@
       <article class="admin-order-item">
         <div class="admin-order-main">
           <div class="admin-order-title">
-            <h3>Order ${order.id.slice(-6)}</h3>
+            <h3>Order ${escapeHtml(String(order.id).slice(-6))}</h3>
             <span class="order-status-badge ${order.deliveryConfirmed ? 'delivered' : 'paid'}">${order.deliveryConfirmed ? 'Delivered' : 'Paid'}</span>
           </div>
-          <p><strong>${order.userName}</strong> · ${order.userEmail}</p>
-          <p>${order.items.map((item) => `${item.name} x${item.quantity}`).join(', ')}</p>
+          <p><strong>${escapeHtml(order.userName)}</strong> · ${escapeHtml(order.userEmail)}</p>
+          <p>${order.items.map((item) => `${escapeHtml(item.name)} x${Number(item.quantity)}`).join(', ')}</p>
           <p class="admin-order-meta">Paid ${new Date(order.paidAt).toLocaleString()} · ${order.deliveryMethod || 'Delivery'} · ${formatMoney(order.total)}</p>
           <p class="admin-order-location"><strong>Location:</strong> ${escapeHtml(order.deliveryLocation || 'Pickup')}</p>
         </div>
         <label class="delivery-toggle">
-          <input type="checkbox" data-order-id="${order.id}" ${order.deliveryConfirmed ? 'checked' : ''}>
+          <input type="checkbox" data-order-id="${escapeHtml(order.id)}" ${order.deliveryConfirmed ? 'checked' : ''}>
           <span>Delivery confirmed</span>
         </label>
       </article>`).join('');
@@ -111,6 +121,7 @@
       const activity = JSON.parse(localStorage.getItem(CART_ACTIVITY_KEY) || '[]');
       return Array.isArray(activity) ? activity : [];
     } catch (error) {
+      console.error('Discarded invalid local cart activity.', error);
       return [];
     }
   }
@@ -123,7 +134,7 @@
       ? activity.slice(0, 20).map((entry) => `
         <article class="cart-activity-item">
           <span class="activity-icon" aria-hidden="true">&#128722;</span>
-          <div><strong>${escapeHtml(entry.userName)}</strong> added <strong>${escapeHtml(entry.productName)}</strong> x${entry.quantity}<small>${new Date(entry.addedAt).toLocaleString()} · ${escapeHtml(entry.userEmail)}</small></div>
+          <div><strong>${escapeHtml(entry.userName)}</strong> added <strong>${escapeHtml(entry.productName)}</strong> x${Number(entry.quantity)}<small>${escapeHtml(new Date(entry.addedAt).toLocaleString())} · ${escapeHtml(entry.userEmail)}</small></div>
         </article>`).join('')
       : '<p class="empty-state">No recent cart activity.</p>';
   }
@@ -138,7 +149,9 @@
   }
 
   function renderReports() {
-    const orders = getOrders().filter((order) => order.paymentStatus === 'completed');
+    const orders = getOrders().filter((order) =>
+      order.paymentStatus === 'completed' && order.paymentReference && order.paymentVerifiedAt
+    );
     const totalReceived = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
     const itemCount = orders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0);
     const pendingCount = orders.filter((order) => !order.deliveryConfirmed).length;
@@ -153,11 +166,11 @@
       summary.innerHTML = '<p class="empty-state">Completed payment reports will appear here.</p>';
       return;
     }
-    const products = {};
+    const products = new Map();
     orders.forEach((order) => order.items.forEach((item) => {
-      products[item.name] = (products[item.name] || 0) + Number(item.quantity || 0);
+      products.set(item.name, (products.get(item.name) || 0) + Number(item.quantity || 0));
     }));
-    summary.innerHTML = `<div class="report-product-list"><h3>Items purchased</h3>${Object.entries(products).map(([name, quantity]) => `<div><span>${escapeHtml(name)}</span><strong>${quantity}</strong></div>`).join('')}</div>`;
+    summary.innerHTML = `<div class="report-product-list"><h3>Items purchased</h3>${[...products].map(([name, quantity]) => `<div><span>${escapeHtml(name)}</span><strong>${quantity}</strong></div>`).join('')}</div>`;
   }
 
   function markNotificationsRead() {
@@ -173,22 +186,30 @@
     const orders = getOrders();
     const order = orders.find((entry) => entry.id === orderId);
     if (!order) return;
-    order.deliveryConfirmed = event.target.checked;
-    order.deliveredAt = order.deliveryConfirmed ? new Date().toISOString() : null;
-    saveOrders(orders);
-    renderOrderList();
+    updateOrderDeliveryStatus(orderId, event.target.checked).then(() => {
+      renderOrderList();
+    }).catch((error) => {
+      console.error('Unable to update order delivery status.', error);
+      window.alert('Delivery status could not be saved. Confirm you are signed in as an administrator.');
+      renderOrderList();
+    });
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
+    const form = event.currentTarget;
 
-    const currentUser = getCurrentUser();
-    if (!currentUser || currentUser.role !== 'admin') {
+    let isAdmin = false;
+    try {
+      isAdmin = await window.MRCo.isStoreAdmin();
+    } catch (error) {
+      console.error('Unable to verify administrator access before saving a product.', error);
+    }
+    if (!isAdmin) {
       window.alert('Only the admin can add products.');
       return;
     }
 
-    const form = event.currentTarget;
     const editId = form.dataset.editId;
     const fileInput = form.querySelector('#productImageFile');
     const imageUrl = form.querySelector('#productImageUrl').value.trim();
@@ -199,20 +220,31 @@
       category: form.querySelector('#productCategory').value.trim(),
       description: form.querySelector('#productDescription').value.trim(),
       price: Number(form.querySelector('#productPrice').value),
-      image: imageUrl || existingProduct?.image || ''
+      image: imageUrl ? sanitizeImageUrl(imageUrl) : existingProduct?.image || ''
     };
 
-    if (!payload.name || !payload.category || !payload.description || Number.isNaN(payload.price) || payload.price <= 0) {
+    if (!payload.name || !payload.category || !payload.description || !Number.isFinite(payload.price) || payload.price <= 0) {
       window.alert('Please complete all product details before saving.');
+      return;
+    }
+    if (imageUrl && !payload.image) {
+      window.alert('Use a valid HTTPS image URL or a path within this site.');
       return;
     }
 
     if (fileInput && fileInput.files && fileInput.files[0]) {
       const file = fileInput.files[0];
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+        window.alert('Choose a JPEG, PNG, WebP, or GIF image no larger than 5 MB.');
+        return;
+      }
       const reader = new FileReader();
       reader.onload = function () {
         payload.image = reader.result;
         saveProduct(payload);
+      };
+      reader.onerror = function () {
+        window.alert('The image file could not be read. Please choose it again.');
       };
       reader.readAsDataURL(file);
       return;
@@ -226,40 +258,54 @@
     saveProduct(payload);
   }
 
-  function saveProduct(product) {
+  async function saveProduct(product) {
     const products = getProducts();
     const index = products.findIndex((entry) => entry.id === product.id);
     if (index >= 0) products[index] = product;
     else products.unshift(product);
-    saveProducts(products);
-    setFormMode();
-    renderProductList();
-    window.alert(index >= 0 ? 'Product updated successfully.' : 'Product saved successfully.');
-  }
-
-  function enforceAdminAccess() {
-    const currentUser = getCurrentUser();
-    const adminContent = document.querySelector('.admin-shell');
-    if (!adminContent) return;
-
-    if (!currentUser || currentUser.role !== 'admin') {
-      adminContent.innerHTML = `
-        <div class="admin-lock">
-          <h2>Admin access required</h2>
-          <p>Please log in with the admin account to manage products.</p>
-          <p>Use email: <strong>admin@mayorrideco.com</strong> and password: <strong>admin123</strong></p>
-          <a href="index.html" class="btn">Back to Home</a>
-        </div>
-      `;
-      return false;
+    try {
+      await saveProducts(products);
+      setFormMode();
+      renderProductList();
+      window.alert(index >= 0 ? 'Product updated successfully.' : 'Product saved successfully.');
+    } catch (error) {
+      console.error('Unable to save product.', error);
+      window.alert('The product could not be saved. Confirm you are signed in as an administrator.');
     }
-
-    return true;
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
+  async function enforceAdminAccess() {
+    const adminContent = document.querySelector('.admin-shell');
+    if (!adminContent) return false;
+
+    let isAdmin = false;
+    try {
+      isAdmin = await window.MRCo.isStoreAdmin();
+    } catch (error) {
+      console.error('Unable to verify administrator access.', error);
+    }
+    if (isAdmin) return true;
+
+    const isConfigured = Boolean(window.MRCo.getSupabaseClient());
+    adminContent.innerHTML = isConfigured ? `
+      <div class="admin-lock">
+        <h2>Admin access required</h2>
+        <p>Sign in with an administrator account configured in Supabase.</p>
+        <a href="index.html" class="btn">Back to Home</a>
+      </div>
+    ` : `
+      <div class="admin-lock">
+        <h2>Admin tools are unavailable</h2>
+        <p>Secure Supabase authentication and database access must be configured first.</p>
+        <a href="index.html" class="btn">Back to Home</a>
+      </div>
+    `;
+    return false;
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
     ensureDatabase();
-    if (!enforceAdminAccess()) {
+    if (!await enforceAdminAccess()) {
       return;
     }
 
@@ -288,6 +334,10 @@
   });
 
   window.addEventListener('mrco-products-updated', renderProductList);
+  window.addEventListener('mrco-orders-updated', () => {
+    renderOrderList();
+    renderReports();
+  });
   window.addEventListener('storage', (event) => {
     if (event.key === CART_ACTIVITY_KEY) {
       renderCartActivity();

@@ -25,12 +25,18 @@
 
     if (userStatus) {
       if (currentUser) {
-        userStatus.innerHTML = `
-          <span class="user-pill">Hi, ${currentUser.name}</span>
-          <button class="nav-btn light" type="button" data-logout>Log out</button>
-        `;
+        userStatus.replaceChildren();
+        const userPill = document.createElement('span');
+        userPill.className = 'user-pill';
+        userPill.textContent = `Hi, ${currentUser.name}`;
+        const logoutButton = document.createElement('button');
+        logoutButton.className = 'nav-btn light';
+        logoutButton.type = 'button';
+        logoutButton.dataset.logout = '';
+        logoutButton.textContent = 'Log out';
+        userStatus.append(userPill, logoutButton);
       } else {
-        userStatus.innerHTML = '';
+        userStatus.replaceChildren();
       }
     }
 
@@ -165,7 +171,11 @@
 
     sessionStorage.removeItem('mrco_welcome_message');
     document.querySelector('.welcome-toast')?.remove();
-    document.body.insertAdjacentHTML('beforeend', `<div class="welcome-toast" role="status">${message}</div>`);
+    const toast = document.createElement('div');
+    toast.className = 'welcome-toast';
+    toast.setAttribute('role', 'status');
+    toast.textContent = message;
+    document.body.append(toast);
     window.setTimeout(() => document.querySelector('.welcome-toast')?.remove(), 6000);
   }
 
@@ -191,7 +201,7 @@
         : mode === 'forgot'
           ? await requestPasswordReset(email)
           : mode === 'reset'
-            ? await updatePassword({ email: sessionStorage.getItem('mrco_reset_email') || email, password })
+            ? await updatePassword({ password })
             : await loginUser({ email, password });
 
       if (!result.success) {
@@ -201,20 +211,12 @@
       }
 
       if (mode === 'forgot') {
-        if (result.localReset) {
-          sessionStorage.setItem('mrco_reset_email', email);
-          message.textContent = 'Account found. Choose a new password below.';
-          message.classList.add('success');
-          setAuthMode('reset');
-        } else {
-          message.textContent = 'Check your email for a password reset link.';
-          message.classList.add('success');
-        }
+        message.textContent = 'Check your email for a password reset link.';
+        message.classList.add('success');
         return;
       }
 
       if (mode === 'reset') {
-        sessionStorage.removeItem('mrco_reset_email');
         window.location.hash = '';
         message.textContent = 'Password updated. You can now log in.';
         message.classList.add('success');
@@ -238,6 +240,7 @@
       finishLogin(result.user);
       form.reset();
     } catch (error) {
+      console.error('Authentication request failed.', error);
       message.textContent = 'We could not complete that request. Please try again.';
       message.classList.add('error');
     } finally {
@@ -253,21 +256,25 @@
       button.disabled = true;
     });
 
-    const result = await socialLogin(provider);
-    if (result.success) {
-      if (!result.redirecting) {
-        finishLogin(result.user);
+    try {
+      const result = await socialLogin(provider);
+      if (!result.success) {
+        if (message) {
+          message.textContent = result.message || 'Unable to continue with social login.';
+          message.className = 'auth-message error';
+        }
       }
-    } else {
+    } catch (error) {
+      console.error('Social sign-in failed.', error);
       if (message) {
-        message.textContent = result.message || 'Unable to continue with social login.';
+        message.textContent = 'Unable to continue with social login. Please try again.';
         message.className = 'auth-message error';
       }
+    } finally {
+      buttons.forEach((button) => {
+        button.disabled = false;
+      });
     }
-
-    buttons.forEach((button) => {
-      button.disabled = false;
-    });
   }
 
   function bindEvents() {
@@ -310,8 +317,20 @@
       }
 
       if (event.target.closest('[data-logout]')) {
-        clearCurrentUser();
-        updateAuthUI();
+        const supabase = window.MRCo.getSupabaseClient();
+        if (supabase) {
+          supabase.auth.signOut().then(({ error }) => {
+            if (error) {
+              console.error('Supabase sign-out failed.', error);
+              return;
+            }
+            clearCurrentUser();
+            updateAuthUI();
+          }).catch((error) => console.error('Supabase sign-out failed.', error));
+        } else {
+          clearCurrentUser();
+          updateAuthUI();
+        }
       }
     });
 
@@ -320,6 +339,8 @@
         handleSubmit(event);
       }
     });
+
+    window.addEventListener('mrco-auth-changed', updateAuthUI);
   }
 
   document.addEventListener('DOMContentLoaded', () => {

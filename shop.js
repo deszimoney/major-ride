@@ -1,5 +1,6 @@
 (function () {
   const { ensureDatabase, getProducts } = window.MRCo;
+  const escapeHtml = (value) => window.MRCo.escapeHtml(value);
 
   function resolveSearchQuery() {
     const params = new URLSearchParams(window.location.search);
@@ -37,12 +38,12 @@
     grid.innerHTML = filtered.map((product) => `
       <!-- Each card keeps the product name, category, and price visible before purchase. -->
       <article class="product-card">
-        <img src="${product.image}" alt="${product.name}">
+      <img src="${escapeHtml(window.MRCo.sanitizeImageUrl(product.image))}" alt="${escapeHtml(product.name)}">
         <div class="product-card-body">
-          <p class="product-category">${product.category}</p>
-          <h2>${product.name}</h2>
-          <p class="product-description">${product.description}</p>
-          <div class="product-buy-row"><p class="price">GHS ${Number(product.price).toFixed(2)}</p><button class="btn product-buy" type="button" data-product-id="${product.id}">Add to cart</button></div>
+        <p class="product-category">${escapeHtml(product.category)}</p>
+        <h2>${escapeHtml(product.name)}</h2>
+        <p class="product-description">${escapeHtml(product.description)}</p>
+        <div class="product-buy-row"><p class="price">GHS ${Number(product.price).toFixed(2)}</p><button class="btn product-buy" type="button" data-product-id="${escapeHtml(product.id)}">Add to cart</button></div>
         </div>
       </article>
     `).join('');

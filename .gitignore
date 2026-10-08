@@ -1,0 +1,13 @@
+# Never commit local credentials or deployment secrets.
+.env
+.env.*
+!.env.example
+**/client_secret_*.json
+**/service-role*.json
+**/*service_role*
+**/*service-role*
+*.pem
+*.key
+*.p12
+*.pfx
+supabase/.env

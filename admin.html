@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://js.paystack.co; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' data: https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.paystack.co https://*.paystack.com; frame-src https://paystack.com https://*.paystack.com; form-action 'self' https://paystack.com https://*.paystack.com; upgrade-insecure-requests">
     <title>Admin Dashboard | Mayor Ride Co.</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -65,15 +67,15 @@
                 <div class="form-grid">
                     <div class="field">
                         <label for="productName">Product name</label>
-                        <input id="productName" type="text" placeholder="Example: Urban Rider Jacket" required>
+                        <input id="productName" type="text" maxlength="120" placeholder="Example: Urban Rider Jacket" required>
                     </div>
                     <div class="field">
                         <label for="productCategory">Category</label>
-                        <input id="productCategory" type="text" placeholder="Helmets, Boots, Gloves..." required>
+                        <input id="productCategory" type="text" maxlength="60" placeholder="Helmets, Boots, Gloves..." required>
                     </div>
                     <div class="field wide">
                         <label for="productDescription">Description</label>
-                        <textarea id="productDescription" rows="3" placeholder="Describe the product" required></textarea>
+                        <textarea id="productDescription" rows="3" maxlength="2000" placeholder="Describe the product" required></textarea>
                     </div>
                     <div class="field">
                         <label for="productPrice">Price (GHS)</label>
@@ -85,7 +87,7 @@
                     </div>
                     <div class="field wide">
                         <label for="productImageFile">Upload product image</label>
-                        <input id="productImageFile" type="file" accept="image/*">
+                        <input id="productImageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
                     </div>
                 </div>
                 <div class="admin-form-actions">
